@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/olivere/jobqueue"
+	"github.com/touch-head-optimistically/jobqueue"
 )
 
 // Server is a simple web server with a WebSocket backend.

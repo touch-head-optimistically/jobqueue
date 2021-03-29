@@ -1,11 +1,13 @@
 package mysql
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"sync"
 	"time"
 
@@ -13,12 +15,12 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/olivere/jobqueue"
-	"github.com/olivere/jobqueue/mysql/internal"
+	"github.com/touch-head-optimistically/jobqueue"
+	"github.com/touch-head-optimistically/jobqueue/mysql/internal"
 )
 
 const (
-	mysqlSchema = `CREATE TABLE IF NOT EXISTS jobqueue_jobs (
+	mysqlSchemaTmpl = `CREATE TABLE IF NOT EXISTS {{.TableName}} (
 id varchar(36) primary key,
 topic varchar(255),
 state varchar(30),
@@ -41,22 +43,23 @@ index ix_jobs_completed (completed),
 index ix_jobs_last_mod (last_mod));`
 
 	// add rank column and index on (rank, priority)
-	mysqlUpdate001 = `ALTER TABLE jobqueue_jobs ADD rank INT NOT NULL DEFAULT '0', ADD INDEX ix_jobs_rank_priority (rank, priority);`
+	mysqlUpdate001Tmpl = `ALTER TABLE {{.TableName}} ADD rank INT NOT NULL DEFAULT '0', ADD INDEX ix_jobs_rank_priority (rank, priority);`
 
 	// add correlation_group column and index on (correlation_group, correlation_id)
-	mysqlUpdate002 = `ALTER TABLE jobqueue_jobs ADD correlation_group varchar(255), ADD INDEX ix_jobs_correlation_group_and_id (correlation_group, correlation_id);`
+	mysqlUpdate002Tmpl = `ALTER TABLE {{.TableName}} ADD correlation_group varchar(255), ADD INDEX ix_jobs_correlation_group_and_id (correlation_group, correlation_id);`
 
 	// add index on state and correlation_group and id
-	mysqlUpdate003 = `ALTER TABLE jobqueue_jobs ADD INDEX ix_jobs_state_correlation_group_and_id (state, correlation_group, id);`
+	mysqlUpdate003Tmpl = `ALTER TABLE {{.TableName}} ADD INDEX ix_jobs_state_correlation_group_and_id (state, correlation_group, id);`
 
 	// change args from text to mediumtext
-	mysqlUpdate004 = `ALTER TABLE jobqueue_jobs CHANGE COLUMN args args MEDIUMTEXT;`
+	mysqlUpdate004Tmpl = `ALTER TABLE {{.TableName}} CHANGE COLUMN args args MEDIUMTEXT;`
 )
 
 // Store represents a persistent MySQL storage implementation.
 // It implements the jobqueue.Store interface.
 type Store struct {
 	db    *sql.DB
+	table string
 	debug bool
 
 	stmtOnce           sync.Once
@@ -66,6 +69,10 @@ type Store struct {
 	nextStmt           *sql.Stmt
 	lookupStmt         *sql.Stmt
 	lookupByCorrIDStmt *sql.Stmt
+}
+
+type Table struct {
+	TableName string
 }
 
 // StoreOption is an options provider for Store.
@@ -105,7 +112,20 @@ func NewStore(url string, options ...StoreOption) (*Store, error) {
 	}
 
 	// Create schema
-	_, err = st.db.Exec(mysqlSchema)
+	tmpl, err := template.New("foo").Parse(mysqlSchemaTmpl)
+	if err != nil {
+		return nil, err
+	}
+
+	var mysqlSchemaBuffer bytes.Buffer
+	err = tmpl.Execute(&mysqlSchemaBuffer, Table{
+		TableName: st.table,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = st.db.Exec(mysqlSchemaBuffer.String())
 	if err != nil {
 		return nil, err
 	}
@@ -116,15 +136,26 @@ func NewStore(url string, options ...StoreOption) (*Store, error) {
 	SELECT COUNT(*) AS cnt
 		FROM information_schema.COLUMNS
 		WHERE TABLE_SCHEMA = ?
-		AND TABLE_NAME = 'jobqueue_jobs'
+		AND TABLE_NAME = '?'
 		AND COLUMN_NAME = 'rank'
-	`, dbname).Scan(&count)
+	`, dbname, st.table).Scan(&count)
 	if err != nil {
 		return nil, err
 	}
 	if count == 0 {
 		// Apply migration
-		_, err = st.db.Exec(mysqlUpdate001)
+		tmpl001, err := template.New("foo").Parse(mysqlUpdate001Tmpl)
+		if err != nil {
+			return nil, err
+		}
+		var mysqlUpdate001Buffer bytes.Buffer
+		err = tmpl001.Execute(&mysqlUpdate001Buffer, Table{
+			TableName: st.table,
+		})
+		if err != nil {
+			return nil, err
+		}
+		_, err = st.db.Exec(mysqlUpdate001Buffer.String())
 		if err != nil {
 			return nil, err
 		}
@@ -135,15 +166,26 @@ func NewStore(url string, options ...StoreOption) (*Store, error) {
 		SELECT COUNT(*) AS cnt
 			FROM information_schema.COLUMNS
 			WHERE TABLE_SCHEMA = ?
-			AND TABLE_NAME = 'jobqueue_jobs'
+			AND TABLE_NAME = '?'
 			AND COLUMN_NAME = 'correlation_group'
-		`, dbname).Scan(&count)
+		`, dbname, st.table).Scan(&count)
 	if err != nil {
 		return nil, err
 	}
 	if count == 0 {
 		// Apply migration
-		_, err = st.db.Exec(mysqlUpdate002)
+		tmpl002, err := template.New("foo").Parse(mysqlUpdate002Tmpl)
+		if err != nil {
+			return nil, err
+		}
+		var mysqlUpdate002Buffer bytes.Buffer
+		err = tmpl002.Execute(&mysqlUpdate002Buffer, Table{
+			TableName: st.table,
+		})
+		if err != nil {
+			return nil, err
+		}
+		_, err = st.db.Exec(mysqlUpdate002Buffer.String())
 		if err != nil {
 			return nil, err
 		}
@@ -154,15 +196,26 @@ func NewStore(url string, options ...StoreOption) (*Store, error) {
 		SELECT COUNT(*) AS cnt
 			FROM information_schema.STATISTICS
 			WHERE TABLE_SCHEMA = ?
-			AND TABLE_NAME = 'jobqueue_jobs'
+			AND TABLE_NAME = '?'
 			AND INDEX_NAME = 'ix_jobs_state_correlation_group_and_id'
-		`, dbname).Scan(&count)
+		`, dbname, st.table).Scan(&count)
 	if err != nil {
 		return nil, err
 	}
 	if count == 0 {
 		// Apply migration
-		_, err = st.db.Exec(mysqlUpdate003)
+		tmpl003, err := template.New("foo").Parse(mysqlUpdate003Tmpl)
+		if err != nil {
+			return nil, err
+		}
+		var mysqlUpdate003Buffer bytes.Buffer
+		err = tmpl003.Execute(&mysqlUpdate003Buffer, Table{
+			TableName: st.table,
+		})
+		if err != nil {
+			return nil, err
+		}
+		_, err = st.db.Exec(mysqlUpdate003Buffer.String())
 		if err != nil {
 			return nil, err
 		}
@@ -173,16 +226,27 @@ func NewStore(url string, options ...StoreOption) (*Store, error) {
 		SELECT COUNT(*) AS cnt
 			FROM information_schema.COLUMNS
 			WHERE TABLE_SCHEMA = ?
-			AND TABLE_NAME = 'jobqueue_jobs'
+			AND TABLE_NAME = '?'
 			AND COLUMN_NAME = 'args'
 			AND DATA_TYPE = 'text'
-		`, dbname).Scan(&count)
+		`, dbname, st.table).Scan(&count)
 	if err != nil {
 		return nil, err
 	}
 	if count == 1 {
 		// Apply migration
-		_, err = st.db.Exec(mysqlUpdate004)
+		tmpl004, err := template.New("foo").Parse(mysqlUpdate004Tmpl)
+		if err != nil {
+			return nil, err
+		}
+		var mysqlUpdate004Buffer bytes.Buffer
+		err = tmpl004.Execute(&mysqlUpdate004Buffer, Table{
+			TableName: st.table,
+		})
+		if err != nil {
+			return nil, err
+		}
+		_, err = st.db.Exec(mysqlUpdate004Buffer.String())
 		if err != nil {
 			return nil, err
 		}
@@ -199,41 +263,48 @@ func SetDebug(enabled bool) StoreOption {
 	}
 }
 
+// SetTable 设置table名
+func SetTable(name string) StoreOption {
+	return func(s *Store) {
+		s.table = name
+	}
+}
+
 func (s *Store) initStmt() {
 	var err error
 
 	// Create statement
-	s.createStmt, err = s.db.Prepare("INSERT INTO jobqueue_jobs (id,topic,state,args,rank,priority,retry,max_retry,correlation_group,correlation_id,created,started,completed,last_mod) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+	s.createStmt, err = s.db.Prepare("INSERT INTO " + s.table + " (id,topic,state,args,rank,priority,retry,max_retry,correlation_group,correlation_id,created,started,completed,last_mod) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 	if err != nil {
 		panic(err)
 	}
 
 	// Update statement
-	s.updateStmt, err = s.db.Prepare("UPDATE jobqueue_jobs SET topic=?,state=?,args=?,rank=?,priority=?,retry=?,max_retry=?,correlation_group=?,correlation_id=?,created=?,started=?,completed=?,last_mod=? WHERE id=?")
+	s.updateStmt, err = s.db.Prepare("UPDATE " + s.table + " SET topic=?,state=?,args=?,rank=?,priority=?,retry=?,max_retry=?,correlation_group=?,correlation_id=?,created=?,started=?,completed=?,last_mod=? WHERE id=?")
 	if err != nil {
 		panic(err)
 	}
 
 	// Delete statement
-	s.deleteStmt, err = s.db.Prepare("DELETE FROM jobqueue_jobs WHERE id=?")
+	s.deleteStmt, err = s.db.Prepare("DELETE FROM " + s.table + " WHERE id=?")
 	if err != nil {
 		panic(err)
 	}
 
 	// Next statement
-	s.nextStmt, err = s.db.Prepare("SELECT id,topic,state,args,rank,priority,retry,max_retry,correlation_group,correlation_id,created,started,completed,last_mod FROM jobqueue_jobs WHERE state=? ORDER BY rank DESC, priority DESC LIMIT 1")
+	s.nextStmt, err = s.db.Prepare("SELECT id,topic,state,args,rank,priority,retry,max_retry,correlation_group,correlation_id,created,started,completed,last_mod FROM " + s.table + " WHERE state=? ORDER BY rank DESC, priority DESC LIMIT 1")
 	if err != nil {
 		panic(err)
 	}
 
 	// Lookup (by id) statement
-	s.lookupStmt, err = s.db.Prepare("SELECT id,topic,state,args,rank,priority,retry,max_retry,correlation_group,correlation_id,created,started,completed,last_mod FROM jobqueue_jobs WHERE id=? LIMIT 1")
+	s.lookupStmt, err = s.db.Prepare("SELECT id,topic,state,args,rank,priority,retry,max_retry,correlation_group,correlation_id,created,started,completed,last_mod FROM " + s.table + " WHERE id=? LIMIT 1")
 	if err != nil {
 		panic(err)
 	}
 
 	// Lookup by correlation id
-	s.lookupByCorrIDStmt, err = s.db.Prepare("SELECT id,topic,state,args,rank,priority,retry,max_retry,correlation_group,correlation_id,created,started,completed,last_mod FROM jobqueue_jobs WHERE correlation_id=? LIMIT 1")
+	s.lookupByCorrIDStmt, err = s.db.Prepare("SELECT id,topic,state,args,rank,priority,retry,max_retry,correlation_group,correlation_id,created,started,completed,last_mod FROM " + s.table + " WHERE correlation_id=? LIMIT 1")
 	if err != nil {
 		panic(err)
 	}
@@ -258,7 +329,7 @@ func (s *Store) Start(b jobqueue.StartupBehaviour) error {
 		err := internal.RunInTxWithRetry(ctx, s.db, func(ctx context.Context, tx *sql.Tx) error {
 			_, err := tx.ExecContext(
 				ctx,
-				`UPDATE jobqueue_jobs SET state = ?, completed = ? WHERE state = ?`,
+				`UPDATE `+s.table+` SET state = ?, completed = ? WHERE state = ?`,
 				jobqueue.Failed,
 				time.Now().UnixNano(),
 				jobqueue.Working,
@@ -336,7 +407,7 @@ func (s *Store) Update(ctx context.Context, job *jobqueue.Job) error {
 		var id string
 		err := tx.QueryRowContext(
 			ctx,
-			`SELECT id FROM jobqueue_jobs WHERE id = ? AND last_mod = ? FOR UPDATE`,
+			`SELECT id FROM `+s.table+` WHERE id = ? AND last_mod = ? FOR UPDATE`,
 			job.ID,
 			job.Updated,
 		).Scan(&id)
@@ -537,8 +608,8 @@ func (s *Store) List(ctx context.Context, request *jobqueue.ListRequest) (*jobqu
 
 	columns := "id,topic,state,args,rank,priority,retry,max_retry,correlation_group,correlation_id,created,started,completed,last_mod"
 	where := make(map[string]interface{})
-	countBuilder := sq.Select("COUNT(*)").From("jobqueue_jobs")
-	queryBuilder := sq.Select(columns).From("jobqueue_jobs")
+	countBuilder := sq.Select("COUNT(*)").From(s.table)
+	queryBuilder := sq.Select(columns).From(s.table)
 
 	// Filters
 	if v := request.Topic; v != "" {
@@ -555,7 +626,7 @@ func (s *Store) List(ctx context.Context, request *jobqueue.ListRequest) (*jobqu
 	}
 
 	// Count
-	countBuilder = sq.Select("COUNT(*)").From("jobqueue_jobs").Where(where)
+	countBuilder = sq.Select("COUNT(*)").From(s.table).Where(where)
 	{
 		sql, args, err := countBuilder.ToSql()
 		if err != nil {
@@ -571,7 +642,7 @@ func (s *Store) List(ctx context.Context, request *jobqueue.ListRequest) (*jobqu
 
 	// Iterate
 	queryBuilder = sq.Select(columns).
-		From("jobqueue_jobs").
+		From(s.table).
 		Where(where).
 		OrderBy("last_mod DESC").
 		Offset(uint64(request.Offset)).Limit(uint64(request.Limit))
@@ -638,7 +709,7 @@ func (s *Store) Stats(ctx context.Context, req *jobqueue.StatsRequest) (*jobqueu
 		if v := req.CorrelationGroup; v != "" {
 			where["correlation_group"] = v
 		}
-		sql, args, err := sq.Select("COUNT(*)").From("jobqueue_jobs").Where(where).ToSql()
+		sql, args, err := sq.Select("COUNT(*)").From(s.table).Where(where).ToSql()
 		if err != nil {
 			return err
 		}
@@ -656,7 +727,7 @@ func (s *Store) Stats(ctx context.Context, req *jobqueue.StatsRequest) (*jobqueu
 		if v := req.CorrelationGroup; v != "" {
 			where["correlation_group"] = v
 		}
-		sql, args, err := sq.Select("COUNT(*)").From("jobqueue_jobs").Where(where).ToSql()
+		sql, args, err := sq.Select("COUNT(*)").From(s.table).Where(where).ToSql()
 		if err != nil {
 			return err
 		}
@@ -674,7 +745,7 @@ func (s *Store) Stats(ctx context.Context, req *jobqueue.StatsRequest) (*jobqueu
 		if v := req.CorrelationGroup; v != "" {
 			where["correlation_group"] = v
 		}
-		sql, args, err := sq.Select("COUNT(*)").From("jobqueue_jobs").Where(where).ToSql()
+		sql, args, err := sq.Select("COUNT(*)").From(s.table).Where(where).ToSql()
 		if err != nil {
 			return err
 		}
@@ -692,7 +763,7 @@ func (s *Store) Stats(ctx context.Context, req *jobqueue.StatsRequest) (*jobqueu
 		if v := req.CorrelationGroup; v != "" {
 			where["correlation_group"] = v
 		}
-		sql, args, err := sq.Select("COUNT(*)").From("jobqueue_jobs").Where(where).ToSql()
+		sql, args, err := sq.Select("COUNT(*)").From(s.table).Where(where).ToSql()
 		if err != nil {
 			return err
 		}

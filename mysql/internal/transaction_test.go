@@ -13,7 +13,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/olivere/jobqueue/mysql/internal"
+	"github.com/touch-head-optimistically/jobqueue/mysql/internal"
 )
 
 var (

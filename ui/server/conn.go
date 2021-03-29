@@ -14,7 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/olivere/jobqueue"
+	"github.com/touch-head-optimistically/jobqueue"
 )
 
 const (

@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 
-	"github.com/olivere/jobqueue"
+	"github.com/touch-head-optimistically/jobqueue"
 )
 
 const (

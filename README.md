@@ -3,7 +3,7 @@
 Jobqueue manages running and scheduling jobs (think Sidekiq or Resque).
 
 [![Build Status](https://travis-ci.org/olivere/jobqueue.svg?branch=master)](https://travis-ci.org/olivere/jobqueue)
-[![Godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](http://godoc.org/github.com/olivere/jobqueue)
+[![Godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](http://godoc.org/github.com/touch-head-optimistically/jobqueue)
 [![license](http://img.shields.io/badge/license-MIT-red.svg?style=flat)](https://raw.githubusercontent.com/olivere/jobqueue/master/LICENSE)
 
 ## Prerequisites
@@ -16,14 +16,14 @@ as a backend for persistent storage.
 
 ## Getting started
 
-Get the repository with `go get github.com/olivere/jobqueue`.
+Get the repository with `go get github.com/touch-head-optimistically/jobqueue`.
 
 Example:
 
 ```go
 import (
-	"github.com/olivere/jobqueue"
-	"github.com/olivere/jobqueue/mysql"
+	"github.com/touch-head-optimistically/jobqueue"
+	"github.com/touch-head-optimistically/jobqueue/mysql"
 )
 
 // Create a MySQL-based persistent backend.

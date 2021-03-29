@@ -1,4 +1,4 @@
-module github.com/olivere/jobqueue
+module github.com/touch-head-optimistically/jobqueue
 
 go 1.12
 

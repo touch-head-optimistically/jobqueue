@@ -12,7 +12,7 @@ import (
 
 	"github.com/globalsign/mgo"
 
-	"github.com/olivere/jobqueue"
+	"github.com/touch-head-optimistically/jobqueue"
 )
 
 const (
