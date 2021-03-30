@@ -136,7 +136,7 @@ func NewStore(url string, options ...StoreOption) (*Store, error) {
 	SELECT COUNT(*) AS cnt
 		FROM information_schema.COLUMNS
 		WHERE TABLE_SCHEMA = ?
-		AND TABLE_NAME = '?'
+		AND TABLE_NAME = ?
 		AND COLUMN_NAME = 'rank'
 	`, dbname, st.table).Scan(&count)
 	if err != nil {
@@ -166,7 +166,7 @@ func NewStore(url string, options ...StoreOption) (*Store, error) {
 		SELECT COUNT(*) AS cnt
 			FROM information_schema.COLUMNS
 			WHERE TABLE_SCHEMA = ?
-			AND TABLE_NAME = '?'
+			AND TABLE_NAME = ?
 			AND COLUMN_NAME = 'correlation_group'
 		`, dbname, st.table).Scan(&count)
 	if err != nil {
@@ -196,7 +196,7 @@ func NewStore(url string, options ...StoreOption) (*Store, error) {
 		SELECT COUNT(*) AS cnt
 			FROM information_schema.STATISTICS
 			WHERE TABLE_SCHEMA = ?
-			AND TABLE_NAME = '?'
+			AND TABLE_NAME = ?
 			AND INDEX_NAME = 'ix_jobs_state_correlation_group_and_id'
 		`, dbname, st.table).Scan(&count)
 	if err != nil {
@@ -226,7 +226,7 @@ func NewStore(url string, options ...StoreOption) (*Store, error) {
 		SELECT COUNT(*) AS cnt
 			FROM information_schema.COLUMNS
 			WHERE TABLE_SCHEMA = ?
-			AND TABLE_NAME = '?'
+			AND TABLE_NAME = ?
 			AND COLUMN_NAME = 'args'
 			AND DATA_TYPE = 'text'
 		`, dbname, st.table).Scan(&count)
